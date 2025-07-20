@@ -114,23 +114,51 @@ const Calendar: React.FC = () => {
       id: selectedEvent ? selectedEvent.id : 'temp-new-event'
     } as Event;
 
-    // Check for conflicts
-    const conflicts = checkConflicts(tempEvent);
-    
-    if (conflicts.length > 0) {
-      // Don't save if there are conflicts - the modal will show the conflict warning
-      return;
-    }
+    try {
+      // Check for conflicts
+      const conflicts = checkConflicts(tempEvent);
+      
+      if (conflicts.length > 0) {
+        // Don't save if there are conflicts - the modal will show the conflict warning
+        return;
+      }
 
-    // No conflicts, proceed with save
-    if (selectedEvent) {
-      updateEvent(selectedEvent.id, eventData);
-    } else {
-      addEvent(eventData);
+      // No conflicts, proceed with save
+      if (selectedEvent) {
+        updateEvent(selectedEvent.id, eventData);
+      } else {
+        addEvent(eventData);
+      }
+      setIsModalOpen(false);
+      setSelectedEvent(null);
+      setSelectedDate(null);
+    } catch (error) {
+      alert('Failed to save event: ' + (error as Error).message);
     }
-    setIsModalOpen(false);
-    setSelectedEvent(null);
-    setSelectedDate(null);
+  };
+
+  const handleEventDuplicate = (event: Event) => {
+    try {
+      const duplicateEvent: Omit<Event, 'id'> = {
+        ...event,
+        title: `${event.title} (Copy)`,
+        date: format(new Date(), 'yyyy-MM-dd'),
+        recurrence: undefined // Remove recurrence from duplicate
+      };
+      addEvent(duplicateEvent);
+      setIsModalOpen(false);
+      setSelectedEvent(null);
+    } catch (error) {
+      alert('Failed to duplicate event: ' + (error as Error).message);
+    }
+  };
+
+  const handleRecurrenceChange = (event: Event, recurrence: any) => {
+    try {
+      updateEvent(event.id, { recurrence });
+    } catch (error) {
+      alert('Failed to update recurrence: ' + (error as Error).message);
+    }
   };
 
   const handleEventDelete = (id: string) => {
@@ -296,6 +324,8 @@ const Calendar: React.FC = () => {
             setSelectedDate(null);
           }}
           onCheckConflicts={checkConflicts}
+          onDuplicate={handleEventDuplicate}
+          onRecurrenceChange={handleRecurrenceChange}
         />
       )}
     </div>

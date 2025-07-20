@@ -128,11 +128,28 @@ export const useEvents = () => {
       throw new Error('Cannot create event due to conflicts');
     }
 
-    // No conflicts, create the event
+    // Generate a unique ID for the new event
+    const newEventId = Date.now().toString();
+
+    // Create the new event
     const newEvent: Event = {
       ...event,
-      id: Date.now().toString()
+      id: newEventId
     };
+
+    // For recurring events, create all instances
+    if (event.recurrence && event.recurrence.type !== 'none') {
+      const startDate = parseISO(event.date);
+      let endDate = event.recurrence.endDate 
+        ? parseISO(event.recurrence.endDate)
+        : addMonths(startDate, 12); // Default to 1 year of recurrence
+
+      const recurringEvents = generateRecurringEvents(newEvent, startDate, endDate);
+      setEvents(prev => [...prev, ...recurringEvents]);
+      return recurringEvents[0];
+    }
+
+    // For non-recurring events, just add the single event
     setEvents(prev => [...prev, newEvent]);
     return newEvent;
   };
@@ -156,10 +173,39 @@ export const useEvents = () => {
       throw new Error('Cannot update event due to conflicts');
     }
 
+    // Handle recurrence updates
+    if (updates.recurrence) {
+      // If changing from recurring to non-recurring, keep only this instance
+      if (existingEvent.recurrence && !updates.recurrence) {
+        setEvents(prev => prev.filter(e => 
+          !e.originalDate || e.originalDate !== existingEvent.date
+        ));
+      }
+      // If changing recurrence pattern, update all future instances
+      else if (existingEvent.recurrence && updates.recurrence) {
+        setEvents(prev => prev.map(e => {
+          if (e.originalDate === existingEvent.date && 
+              parseISO(e.date) >= parseISO(existingEvent.date)) {
+            return { ...e, recurrence: updates.recurrence };
+          }
+          return e;
+        }));
+      }
+    }
+
     // No conflicts, update the event
-    setEvents(prev => prev.map(event => 
-      event.id === id ? { ...event, ...updates } : event
-    ));
+    setEvents(prev => prev.map(event => {
+      if (event.id === id) {
+        // Keep track of the original date for recurring events
+        const originalDate = event.originalDate || event.date;
+        return { 
+          ...event, 
+          ...updates,
+          originalDate: updates.date ? event.date : originalDate
+        };
+      }
+      return event;
+    }));
   };
 
   const deleteEvent = (id: string): void => {

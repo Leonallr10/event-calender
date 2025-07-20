@@ -19,6 +19,7 @@ interface FormData {
   category: string;
   color: string;
   recurrence: Recurrence;
+  updateMode?: 'single' | 'all';
 }
 
 interface EventModalProps {
@@ -29,6 +30,8 @@ interface EventModalProps {
   onDelete?: (id: string) => void;
   onClose: () => void;
   onCheckConflicts: (event: Event) => Event[];
+  onDuplicate?: (event: Event) => void;
+  onRecurrenceChange?: (event: Event, recurrence: Recurrence) => void;
 }
 
 const EventModal: React.FC<EventModalProps> = ({ 
@@ -38,7 +41,9 @@ const EventModal: React.FC<EventModalProps> = ({
   onSave, 
   onDelete, 
   onClose,
-  onCheckConflicts
+  onCheckConflicts,
+  onDuplicate,
+  onRecurrenceChange
 }) => {
   const [formData, setFormData] = useState<{
     title: string;
@@ -48,6 +53,7 @@ const EventModal: React.FC<EventModalProps> = ({
     endTime: string;
     category: string;
     color: string;
+    updateMode: 'single' | 'all';
     recurrence: {
       type: 'none' | 'daily' | 'weekly' | 'monthly' | 'custom';
       interval: number;
@@ -67,7 +73,8 @@ const EventModal: React.FC<EventModalProps> = ({
       interval: 1,
       daysOfWeek: [],
       endDate: ''
-    }
+    },
+    updateMode: 'all'
   });
 
   const [conflicts, setConflicts] = useState<Event[]>([]);
@@ -83,6 +90,7 @@ const EventModal: React.FC<EventModalProps> = ({
         endTime: event.endTime || '',
         category: event.category,
         color: event.color,
+        updateMode: 'all',
         recurrence: event.recurrence ? {
           type: event.recurrence.type,
           interval: event.recurrence.interval || 1,
@@ -144,7 +152,7 @@ const EventModal: React.FC<EventModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const eventData: Omit<Event, 'id'> = {
+    const eventData: Omit<Event, 'id'> & { updateMode?: 'single' | 'all' } = {
       title: formData.title,
       description: formData.description,
       date: formData.date,
@@ -152,7 +160,8 @@ const EventModal: React.FC<EventModalProps> = ({
       endTime: formData.endTime || undefined,
       category: formData.category,
       color: formData.color,
-      recurrence: formData.recurrence.type === 'none' ? undefined : formData.recurrence
+      recurrence: formData.recurrence.type === 'none' ? undefined : formData.recurrence,
+      updateMode: event?.recurrence?.type !== 'none' ? formData.updateMode : undefined
     };
 
     // Check for conflicts one final time before saving
@@ -317,6 +326,45 @@ const EventModal: React.FC<EventModalProps> = ({
                 ))}
               </div>
             </div>
+
+            {/* Update Mode for Recurring Events */}
+            {event?.recurrence && event.recurrence.type !== 'none' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <label className="text-sm font-medium text-blue-800 mb-3 block">
+                  Update Mode
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="updateMode"
+                      value="single"
+                      checked={formData.updateMode === 'single'}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        updateMode: e.target.value as 'single' | 'all'
+                      }))}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-blue-800">Update only this occurrence</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="updateMode"
+                      value="all"
+                      checked={formData.updateMode === 'all'}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        updateMode: e.target.value as 'single' | 'all'
+                      }))}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-blue-800">Update all occurrences</span>
+                  </label>
+                </div>
+              </div>
+            )}
 
             {/* Recurrence */}
             <div>
