@@ -26,8 +26,8 @@ interface EventModalProps {
   event?: Event | null;
   initialDate?: string;
   categories: EventCategory[];
-  onSave: (event: Omit<Event, 'id'>) => void;
-  onDelete?: (id: string) => void;
+  onSave: (event: Omit<Event, 'id'> & { updateMode?: 'single' | 'all' }) => void;
+  onDelete?: (id: string, updateMode?: 'single' | 'all') => void;
   onClose: () => void;
   onCheckConflicts: (event: Event) => Event[];
   onDuplicate?: (event: Event) => void;
@@ -176,7 +176,15 @@ const EventModal: React.FC<EventModalProps> = ({
 
   const handleDelete = () => {
     if (event && onDelete) {
-      onDelete(event.id);
+      // Check if this is a recurring event
+      const isRecurring = event.recurrence && event.recurrence.type !== 'none';
+      const isRecurringInstance = event.isRecurringInstance || event.id.includes('-');
+      
+      if (isRecurring || isRecurringInstance) {
+        onDelete(event.id, formData.updateMode);
+      } else {
+        onDelete(event.id);
+      }
     }
   };
 
@@ -328,7 +336,7 @@ const EventModal: React.FC<EventModalProps> = ({
             </div>
 
             {/* Update Mode for Recurring Events */}
-            {event?.recurrence && event.recurrence.type !== 'none' && (
+            {event && ((event.recurrence && event.recurrence.type !== 'none') || event.isRecurringInstance || event.id.includes('-')) && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <label className="text-sm font-medium text-blue-800 mb-3 block">
                   Update Mode

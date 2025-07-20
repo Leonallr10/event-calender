@@ -14,6 +14,8 @@ export interface Event {
     endDate?: string; // when to stop recurring
   };
   originalDate?: string; // for tracking moved recurring events
+  parentId?: string; // for recurring event instances, points to the master event
+  isRecurringInstance?: boolean; // true if this is an instance of a recurring event
 }
 
 export interface EventCategory {

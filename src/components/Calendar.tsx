@@ -107,7 +107,7 @@ const Calendar: React.FC = () => {
     }
   };
 
-  const handleEventSave = (eventData: Omit<Event, 'id'>) => {
+  const handleEventSave = (eventData: Omit<Event, 'id'> & { updateMode?: 'single' | 'all' }) => {
     // Create a temporary event object to check for conflicts
     const tempEvent = {
       ...eventData,
@@ -161,8 +161,8 @@ const Calendar: React.FC = () => {
     }
   };
 
-  const handleEventDelete = (id: string) => {
-    deleteEvent(id);
+  const handleEventDelete = (id: string, updateMode?: 'single' | 'all') => {
+    deleteEvent(id, updateMode);
     setIsModalOpen(false);
     setSelectedEvent(null);
   };
