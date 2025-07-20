@@ -152,6 +152,12 @@ const EventModal: React.FC<EventModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // If updating only this occurrence, remove recurrence
+    const isUpdatingSingleOccurrence = event && ((event.recurrence && event.recurrence.type !== 'none') || event.isRecurringInstance || event.id.includes('-')) && formData.updateMode === 'single';
+    const recurrence = isUpdatingSingleOccurrence 
+      ? undefined 
+      : (formData.recurrence.type === 'none' ? undefined : formData.recurrence);
+    
     const eventData: Omit<Event, 'id'> & { updateMode?: 'single' | 'all' } = {
       title: formData.title,
       description: formData.description,
@@ -160,8 +166,8 @@ const EventModal: React.FC<EventModalProps> = ({
       endTime: formData.endTime || undefined,
       category: formData.category,
       color: formData.color,
-      recurrence: formData.recurrence.type === 'none' ? undefined : formData.recurrence,
-      updateMode: event?.recurrence?.type !== 'none' ? formData.updateMode : undefined
+      recurrence: recurrence,
+      updateMode: event?.recurrence?.type !== 'none' || event?.isRecurringInstance || event?.id.includes('-') ? formData.updateMode : undefined
     };
 
     // Check for conflicts one final time before saving
@@ -354,7 +360,10 @@ const EventModal: React.FC<EventModalProps> = ({
                       }))}
                       className="text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-sm text-blue-800">Update only this occurrence</span>
+                    <div>
+                      <span className="text-sm text-blue-800">Update only this occurrence</span>
+                      <p className="text-xs text-blue-600">This will create a separate event (recurrence will be removed)</p>
+                    </div>
                   </label>
                   <label className="flex items-center gap-2">
                     <input
@@ -368,30 +377,34 @@ const EventModal: React.FC<EventModalProps> = ({
                       }))}
                       className="text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-sm text-blue-800">Update all occurrences</span>
+                    <div>
+                      <span className="text-sm text-blue-800">Update all occurrences</span>
+                      <p className="text-xs text-blue-600">Changes will apply to all events in this series</p>
+                    </div>
                   </label>
                 </div>
               </div>
             )}
 
-            {/* Recurrence */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                <Repeat className="w-4 h-4" />
-                Recurrence
-              </label>
-              <div className="space-y-4">
-                <select
-                  value={formData.recurrence.type}
-                  onChange={(e) => handleRecurrenceTypeChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="none">No Recurrence</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="custom">Custom</option>
-                </select>
+            {/* Recurrence - Hide when updating only this occurrence */}
+            {!(event && ((event.recurrence && event.recurrence.type !== 'none') || event.isRecurringInstance || event.id.includes('-')) && formData.updateMode === 'single') && (
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                  <Repeat className="w-4 h-4" />
+                  Recurrence
+                </label>
+                <div className="space-y-4">
+                  <select
+                    value={formData.recurrence.type}
+                    onChange={(e) => handleRecurrenceTypeChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="none">No Recurrence</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="custom">Custom</option>
+                  </select>
 
                 {formData.recurrence.type === 'weekly' && (
                   <div>
@@ -457,7 +470,8 @@ const EventModal: React.FC<EventModalProps> = ({
                   </div>
                 )}
               </div>
-            </div>
+              </div>
+            )}
 
             {/* Conflicts Warning */}
             {isCheckingConflicts && (

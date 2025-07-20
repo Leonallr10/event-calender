@@ -191,6 +191,19 @@ export const useEvents = () => {
       }
     }
     
+    // Also check regular events in case it's a master event stored there
+    if (!masterEvent) {
+      const savedEvents = localStorage.getItem('calendar-events');
+      if (savedEvents) {
+        try {
+          const regularEvents = JSON.parse(savedEvents);
+          masterEvent = regularEvents.find((e: Event) => e.id === parentId);
+        } catch (error) {
+          console.error('Failed to parse saved events:', error);
+        }
+      }
+    }
+    
     if (!masterEvent) {
       throw new Error('Event not found');
     }
