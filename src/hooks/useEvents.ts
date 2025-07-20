@@ -3,12 +3,10 @@ import { Event, EventCategory } from '../types/Event';
 import { 
   addDays, 
   addWeeks, 
-  addMonths, 
-  isSameDay, 
+  addMonths,
+  addHours,
   parseISO, 
-  format,
-  isAfter,
-  isBefore
+  format
 } from 'date-fns';
 
 const DEFAULT_CATEGORIES: EventCategory[] = [
@@ -119,6 +117,18 @@ export const useEvents = () => {
   };
 
   const addEvent = (event: Omit<Event, 'id'>): Event => {
+    // Check for conflicts before adding
+    const tempEvent = {
+      ...event,
+      id: 'temp-' + Date.now().toString()
+    } as Event;
+
+    const conflicts = checkConflicts(tempEvent);
+    if (conflicts.length > 0) {
+      throw new Error('Cannot create event due to conflicts');
+    }
+
+    // No conflicts, create the event
     const newEvent: Event = {
       ...event,
       id: Date.now().toString()
@@ -128,6 +138,25 @@ export const useEvents = () => {
   };
 
   const updateEvent = (id: string, updates: Partial<Event>): void => {
+    // First, get the existing event
+    const existingEvent = events.find(e => e.id === id);
+    if (!existingEvent) {
+      throw new Error('Event not found');
+    }
+
+    // Create a temporary updated event to check for conflicts
+    const tempEvent = {
+      ...existingEvent,
+      ...updates,
+    } as Event;
+
+    // Check for conflicts, excluding the current event being updated
+    const conflicts = checkConflicts(tempEvent);
+    if (conflicts.length > 0) {
+      throw new Error('Cannot update event due to conflicts');
+    }
+
+    // No conflicts, update the event
     setEvents(prev => prev.map(event => 
       event.id === id ? { ...event, ...updates } : event
     ));
@@ -148,19 +177,39 @@ export const useEvents = () => {
     const eventsOnSameDay = getEventsForDate(eventDate);
     
     return eventsOnSameDay.filter(e => {
+      // Skip comparing with itself
       if (e.id === event.id) return false;
       
-      // Check time overlap
-      if (e.time && event.time) {
-        const eStart = parseISO(`${e.date}T${e.time}`);
-        const eEnd = e.endTime ? parseISO(`${e.date}T${e.endTime}`) : addDays(eStart, 0);
-        const eventStart = parseISO(`${event.date}T${event.time}`);
-        const eventEnd = event.endTime ? parseISO(`${event.date}T${event.endTime}`) : addDays(eventStart, 0);
-        
-        return (eventStart < eEnd && eventEnd > eStart);
+      // If either event doesn't have a time, treat it as an all-day event
+      if (!e.time || !event.time) {
+        return true; // All-day events conflict with everything on the same day
       }
       
-      return false;
+      // Parse event times
+      const eStart = parseISO(`${e.date}T${e.time}`);
+      const eventStart = parseISO(`${event.date}T${event.time}`);
+      
+      // Set end times (if not specified, use start time plus 1 hour)
+      const eEnd = e.endTime 
+        ? parseISO(`${e.date}T${e.endTime}`)
+        : addHours(eStart, 1);
+      const eventEnd = event.endTime 
+        ? parseISO(`${event.date}T${event.endTime}`)
+        : addHours(eventStart, 1);
+      
+      // Check if the events overlap
+      const hasOverlap = (
+        // New event starts during existing event
+        (eventStart >= eStart && eventStart < eEnd) ||
+        // New event ends during existing event
+        (eventEnd > eStart && eventEnd <= eEnd) ||
+        // New event completely contains existing event
+        (eventStart <= eStart && eventEnd >= eEnd) ||
+        // Events start at exactly the same time
+        eventStart.getTime() === eStart.getTime()
+      );
+      
+      return hasOverlap;
     });
   };
 

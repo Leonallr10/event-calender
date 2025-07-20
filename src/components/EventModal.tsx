@@ -3,6 +3,24 @@ import { X, Calendar, Clock, Type, AlignLeft, Repeat, Palette, AlertTriangle } f
 import { Event, EventCategory } from '../types/Event';
 import { format } from 'date-fns';
 
+interface Recurrence {
+  type: 'none' | 'daily' | 'weekly' | 'monthly' | 'custom';
+  interval: number;
+  daysOfWeek: number[];
+  endDate: string;
+}
+
+interface FormData {
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  endTime: string;
+  category: string;
+  color: string;
+  recurrence: Recurrence;
+}
+
 interface EventModalProps {
   event?: Event | null;
   initialDate?: string;
@@ -10,6 +28,7 @@ interface EventModalProps {
   onSave: (event: Omit<Event, 'id'>) => void;
   onDelete?: (id: string) => void;
   onClose: () => void;
+  onCheckConflicts: (event: Event) => Event[];
 }
 
 const EventModal: React.FC<EventModalProps> = ({ 
@@ -18,9 +37,24 @@ const EventModal: React.FC<EventModalProps> = ({
   categories, 
   onSave, 
   onDelete, 
-  onClose 
+  onClose,
+  onCheckConflicts
 }) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    title: string;
+    description: string;
+    date: string;
+    time: string;
+    endTime: string;
+    category: string;
+    color: string;
+    recurrence: {
+      type: 'none' | 'daily' | 'weekly' | 'monthly' | 'custom';
+      interval: number;
+      daysOfWeek: number[];
+      endDate: string;
+    };
+  }>({
     title: '',
     description: '',
     date: initialDate || format(new Date(), 'yyyy-MM-dd'),
@@ -29,14 +63,15 @@ const EventModal: React.FC<EventModalProps> = ({
     category: 'work',
     color: '#3B82F6',
     recurrence: {
-      type: 'none' as const,
+      type: 'none',
       interval: 1,
-      daysOfWeek: [] as number[],
+      daysOfWeek: [],
       endDate: ''
     }
   });
 
   const [conflicts, setConflicts] = useState<Event[]>([]);
+  const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
 
   useEffect(() => {
     if (event) {
@@ -48,15 +83,63 @@ const EventModal: React.FC<EventModalProps> = ({
         endTime: event.endTime || '',
         category: event.category,
         color: event.color,
-        recurrence: event.recurrence || {
+        recurrence: event.recurrence ? {
+          type: event.recurrence.type,
+          interval: event.recurrence.interval || 1,
+          daysOfWeek: event.recurrence.daysOfWeek || [],
+          endDate: event.recurrence.endDate || ''
+        } : {
           type: 'none',
           interval: 1,
           daysOfWeek: [],
           endDate: ''
         }
       });
+    } else if (initialDate) {
+      // For new events, set initial data and check conflicts
+      setFormData(prev => ({
+        ...prev,
+        date: initialDate
+      }));
     }
-  }, [event]);
+
+    // Check for initial conflicts
+    const checkInitialConflicts = async () => {
+      if (!formData.time) return;
+
+      setIsCheckingConflicts(true);
+      const eventToCheck = {
+        ...formData,
+        id: event?.id || 'new-event',
+      } as Event;
+
+      const conflictingEvents = onCheckConflicts(eventToCheck);
+      setConflicts(conflictingEvents);
+      setIsCheckingConflicts(false);
+    };
+
+    checkInitialConflicts();
+  }, [event, initialDate]);
+
+  // Check for conflicts when date, time, or endTime changes
+  useEffect(() => {
+    const checkConflicts = async () => {
+      if (!formData.time) return;
+
+      setIsCheckingConflicts(true);
+      const eventToCheck = {
+        ...formData,
+        id: event?.id || 'new',
+      } as Event;
+
+      const conflictingEvents = onCheckConflicts(eventToCheck);
+      setConflicts(conflictingEvents);
+      setIsCheckingConflicts(false);
+    };
+
+    const timeoutId = setTimeout(checkConflicts, 500); // Debounce conflict checking
+    return () => clearTimeout(timeoutId);
+  }, [formData.date, formData.time, formData.endTime, event?.id]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +154,13 @@ const EventModal: React.FC<EventModalProps> = ({
       color: formData.color,
       recurrence: formData.recurrence.type === 'none' ? undefined : formData.recurrence
     };
+
+    // Check for conflicts one final time before saving
+    const finalCheck = onCheckConflicts({ ...eventData, id: event?.id || 'new' } as Event);
+    if (finalCheck.length > 0) {
+      setConflicts(finalCheck);
+      return; // Prevent saving if there are conflicts
+    }
 
     onSave(eventData);
   };
@@ -104,24 +194,24 @@ const EventModal: React.FC<EventModalProps> = ({
     }));
   };
 
-  const selectedCategory = categories.find(c => c.id === formData.category);
+
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center p-0 sm:p-4 z-50">
+      <div className="bg-white w-full sm:rounded-xl shadow-xl sm:w-full sm:max-w-2xl h-full sm:max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 z-10 bg-white flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
             {event ? 'Edit Event' : 'Add New Event'}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation"
           >
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6">
           <div className="space-y-6">
             {/* Title */}
             <div>
@@ -155,7 +245,7 @@ const EventModal: React.FC<EventModalProps> = ({
             </div>
 
             {/* Date and Time */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                   <Calendar className="w-4 h-4" />
@@ -165,7 +255,7 @@ const EventModal: React.FC<EventModalProps> = ({
                   type="date"
                   value={formData.date}
                   onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
                   required
                 />
               </div>
@@ -178,7 +268,7 @@ const EventModal: React.FC<EventModalProps> = ({
                   type="time"
                   value={formData.time}
                   onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
                   required
                 />
               </div>
@@ -191,7 +281,7 @@ const EventModal: React.FC<EventModalProps> = ({
                   type="time"
                   value={formData.endTime}
                   onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
                 />
               </div>
             </div>
@@ -314,28 +404,40 @@ const EventModal: React.FC<EventModalProps> = ({
             </div>
 
             {/* Conflicts Warning */}
-            {conflicts.length > 0 && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            {isCheckingConflicts && (
+              <div className="flex items-center gap-2 text-blue-600 p-2">
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm">Checking for conflicts...</span>
+              </div>
+            )}
+            {!isCheckingConflicts && conflicts.length > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 animate-pulse">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                  <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 animate-bounce" />
                   <div>
                     <h3 className="text-sm font-medium text-yellow-800">
-                      Scheduling Conflicts Detected
+                      ⚠️ Scheduling Conflicts Detected
                     </h3>
                     <p className="text-sm text-yellow-700 mt-1">
-                      This event conflicts with:
+                      This event conflicts with the following events:
                     </p>
                     <ul className="text-sm text-yellow-700 mt-2 space-y-1">
                       {conflicts.map(conflict => (
-                        <li key={conflict.id} className="flex items-center gap-2">
+                        <li key={conflict.id} className="flex items-center gap-2 bg-yellow-100/50 p-2 rounded">
                           <div 
                             className="w-3 h-3 rounded-full" 
                             style={{ backgroundColor: conflict.color }}
                           />
-                          {conflict.title} at {conflict.time}
+                          <span className="font-medium">{conflict.title}</span>
+                          <span className="text-yellow-800">
+                            at {conflict.time}{conflict.endTime ? ` - ${conflict.endTime}` : ''}
+                          </span>
                         </li>
                       ))}
                     </ul>
+                    <p className="text-sm text-yellow-700 mt-3 font-medium">
+                      Please choose a different time or date to proceed.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -343,32 +445,39 @@ const EventModal: React.FC<EventModalProps> = ({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-between pt-6 border-t border-gray-200 mt-6">
-            <div>
-              {event && onDelete && (
+          <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 mt-6">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-0 p-4 sm:pt-6">
+              <div>
+                {event && onDelete && (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    className="w-full sm:w-auto px-4 py-3 sm:py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors touch-manipulation text-base sm:text-sm"
+                  >
+                    Delete Event
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:flex items-center gap-2 sm:gap-3">
                 <button
                   type="button"
-                  onClick={handleDelete}
-                  className="px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                  onClick={onClose}
+                  className="px-4 py-3 sm:py-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation text-base sm:text-sm"
                 >
-                  Delete Event
+                  Cancel
                 </button>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                {event ? 'Update Event' : 'Create Event'}
-              </button>
+                <button
+                  type="submit"
+                  disabled={isCheckingConflicts || conflicts.length > 0}
+                  className={`px-6 py-3 sm:py-2 rounded-lg transition-colors touch-manipulation text-base sm:text-sm ${
+                    isCheckingConflicts || conflicts.length > 0
+                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {event ? 'Update Event' : 'Create Event'}
+                </button>
+              </div>
             </div>
           </div>
         </form>

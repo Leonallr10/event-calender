@@ -29,19 +29,19 @@ const EventFilters: React.FC<EventFiltersProps> = ({
   };
 
   return (
-    <div className="bg-gray-50 rounded-lg p-4 mb-4">
-      <div className="flex items-center justify-between mb-3">
+    <div className="bg-gray-50 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 mb-3">
         <h3 className="text-sm font-medium text-gray-700">Filter by Category</h3>
-        <div className="flex gap-2">
+        <div className="flex gap-4 sm:gap-2">
           <button
             onClick={handleSelectAll}
-            className="text-xs text-blue-600 hover:text-blue-700"
+            className="text-xs text-blue-600 hover:text-blue-700 touch-manipulation"
           >
             Select All
           </button>
           <button
             onClick={handleClearAll}
-            className="text-xs text-gray-600 hover:text-gray-700"
+            className="text-xs text-gray-600 hover:text-gray-700 touch-manipulation"
           >
             Clear All
           </button>
@@ -52,17 +52,17 @@ const EventFilters: React.FC<EventFiltersProps> = ({
           <button
             key={category.id}
             onClick={() => handleCategoryToggle(category.id)}
-            className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm transition-all ${
+            className={`flex items-center gap-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm transition-all touch-manipulation ${
               selectedCategories.includes(category.id)
                 ? 'bg-blue-100 text-blue-700 border border-blue-300'
                 : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
             }`}
           >
             <div
-              className="w-3 h-3 rounded-full"
+              className="w-2 h-2 sm:w-3 sm:h-3 rounded-full"
               style={{ backgroundColor: category.color }}
             />
-            {category.name}
+            <span className="truncate">{category.name}</span>
           </button>
         ))}
       </div>

@@ -9,9 +9,7 @@ import {
   isSameMonth, 
   isToday,
   addMonths,
-  subMonths,
-  isSameDay,
-  parseISO
+  subMonths
 } from 'date-fns';
 import { ChevronLeft, ChevronRight, Plus, Search, Filter } from 'lucide-react';
 import { useEvents } from '../hooks/useEvents';
@@ -31,7 +29,7 @@ const Calendar: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const dragCounter = useRef(0);
 
-  const { events, categories, getEventsForDate, addEvent, updateEvent, deleteEvent, moveEvent, checkConflicts } = useEvents();
+  const { categories, getEventsForDate, addEvent, updateEvent, deleteEvent, moveEvent, checkConflicts } = useEvents();
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -110,6 +108,21 @@ const Calendar: React.FC = () => {
   };
 
   const handleEventSave = (eventData: Omit<Event, 'id'>) => {
+    // Create a temporary event object to check for conflicts
+    const tempEvent = {
+      ...eventData,
+      id: selectedEvent ? selectedEvent.id : 'temp-new-event'
+    } as Event;
+
+    // Check for conflicts
+    const conflicts = checkConflicts(tempEvent);
+    
+    if (conflicts.length > 0) {
+      // Don't save if there are conflicts - the modal will show the conflict warning
+      return;
+    }
+
+    // No conflicts, proceed with save
     if (selectedEvent) {
       updateEvent(selectedEvent.id, eventData);
     } else {
@@ -128,30 +141,30 @@ const Calendar: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-3xl font-bold text-gray-900">Event Calendar</h1>
-            <div className="flex items-center gap-4">
-              <div className="relative">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Event Calendar</h1>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
+              <div className="relative flex-grow sm:flex-grow-0">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
                   type="text"
                   placeholder="Search events..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                   showFilters ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 <Filter className="w-4 h-4" />
-                Filters
+                <span>Filters</span>
               </button>
             </div>
           </div>
@@ -164,20 +177,22 @@ const Calendar: React.FC = () => {
             />
           )}
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
               <button
                 onClick={handlePrevMonth}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors touch-manipulation"
               >
                 <ChevronLeft className="w-5 h-5 text-gray-600" />
               </button>
-              <h2 className="text-xl font-semibold text-gray-900 min-w-[200px] text-center">
-                {format(currentDate, 'MMMM yyyy')}
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 min-w-[160px] sm:min-w-[200px] text-center">
+                <span className={isSameMonth(currentDate, new Date()) ? 'text-blue-600' : ''}>
+                  {format(currentDate, 'MMMM yyyy')}
+                </span>
               </h2>
               <button
                 onClick={handleNextMonth}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors touch-manipulation"
               >
                 <ChevronRight className="w-5 h-5 text-gray-600" />
               </button>
@@ -188,7 +203,7 @@ const Calendar: React.FC = () => {
                 setSelectedEvent(null);
                 setIsModalOpen(true);
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors touch-manipulation"
             >
               <Plus className="w-4 h-4" />
               Add Event
@@ -201,15 +216,16 @@ const Calendar: React.FC = () => {
           {/* Days of Week Header */}
           <div className="grid grid-cols-7 border-b border-gray-200">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className="p-4 text-center text-sm font-medium text-gray-700 bg-gray-50">
-                {day}
+              <div key={day} className="p-2 sm:p-4 text-center text-xs sm:text-sm font-medium text-gray-700 bg-gray-50">
+                {day.slice(0, 1)}
+                <span className="hidden sm:inline">{day.slice(1)}</span>
               </div>
             ))}
           </div>
 
           {/* Calendar Days */}
           <div className="grid grid-cols-7">
-            {calendarDays.map((day, index) => {
+            {calendarDays.map(day => {
               const dayEvents = filteredEvents(getEventsForDate(day));
               const isCurrentMonth = isSameMonth(day, currentDate);
               const isCurrentDay = isToday(day);
@@ -217,22 +233,31 @@ const Calendar: React.FC = () => {
               return (
                 <div
                   key={day.toISOString()}
-                  className={`min-h-[120px] p-2 border-r border-b border-gray-200 cursor-pointer transition-colors ${
+                  className={`relative min-h-[80px] sm:min-h-[120px] p-1 sm:p-2 border-r border-b border-gray-200 cursor-pointer transition-colors touch-manipulation ${
                     isCurrentMonth ? 'bg-white hover:bg-gray-50' : 'bg-gray-50'
-                  } ${isCurrentDay ? 'bg-blue-50' : ''}`}
+                  } ${isCurrentDay ? 'bg-blue-50 ring-2 ring-blue-500 ring-inset' : ''}`}
                   onClick={() => handleDateClick(day)}
                   onDragOver={handleDragOver}
                   onDragEnter={handleDragEnter}
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, day)}
                 >
-                  <div className={`text-sm font-medium mb-1 ${
-                    isCurrentMonth ? 'text-gray-900' : 'text-gray-400'
-                  } ${isCurrentDay ? 'text-blue-600' : ''}`}>
-                    {format(day, 'd')}
+                  <div className={`relative z-10 inline-flex items-center justify-center ${
+                    isCurrentDay ? 'bg-blue-600 text-white rounded-full w-7 h-7' : ''
+                  }`}>
+                    <span className={`text-xs sm:text-sm font-medium ${
+                      isCurrentMonth ? (!isCurrentDay ? 'text-gray-900' : '') : 'text-gray-400'
+                    }`}>
+                      {format(day, 'd')}
+                    </span>
                   </div>
-                  <div className="space-y-1">
-                    {dayEvents.slice(0, 3).map(event => (
+                  {isCurrentDay && (
+                    <div className="absolute top-0 right-0 mt-1 mr-1">
+                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                    </div>
+                  )}
+                  <div className="space-y-0.5 sm:space-y-1">
+                    {dayEvents.slice(0, window.innerWidth < 640 ? 2 : 3).map(event => (
                       <EventCard
                         key={event.id}
                         event={event}
@@ -244,9 +269,9 @@ const Calendar: React.FC = () => {
                         category={categories.find(c => c.id === event.category)}
                       />
                     ))}
-                    {dayEvents.length > 3 && (
-                      <div className="text-xs text-gray-500 px-2">
-                        +{dayEvents.length - 3} more
+                    {dayEvents.length > (window.innerWidth < 640 ? 2 : 3) && (
+                      <div className="text-xs text-gray-500 px-1 sm:px-2">
+                        +{dayEvents.length - (window.innerWidth < 640 ? 2 : 3)} more
                       </div>
                     )}
                   </div>
@@ -270,6 +295,7 @@ const Calendar: React.FC = () => {
             setSelectedEvent(null);
             setSelectedDate(null);
           }}
+          onCheckConflicts={checkConflicts}
         />
       )}
     </div>
